@@ -37,6 +37,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+import com.stage.pong.dtmf.Decoder;
+import com.stage.pong.dtmf.Encoder;
 import com.stage.pong.modeles.Ball;
 import com.stage.pong.modeles.GameScoreManager;
 import com.stage.pong.modeles.PongModel;
@@ -44,8 +46,8 @@ import com.stage.pong.udpconnection.PongCommunication;
 import com.stage.pong.views.scenes.PongScene;
 import com.stage.pong.views.sprites.PongSprite;
 
-public class PongControllerTwoPlayer extends BaseGameActivity implements Observer,
-		IAnalogOnScreenControlListener {
+public class PongControllerTwoPlayer extends BaseGameActivity implements
+		Observer, IAnalogOnScreenControlListener {
 
 	// constantes
 	public final static int CAMERA_LARGEUR = 320;
@@ -53,13 +55,12 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements Observe
 	public static final int MESSAGE_READ = 1;
 	public static final int MESSAGE_ASK = 2;
 	public static final int MESSAGE_SCORE = 4;
-	private int scoreI=0;
-	private int missesI=0;
+	private int scoreI = 0;
+	private int missesI = 0;
 
 	// variables de communications
-	public String remoteIP = null;
-	private PongCommunication PC = null;
-
+	private Decoder decoder;
+	private Encoder encoder;
 	// modele
 	private static PongModel PM;
 	private static GameScoreManager GSM;
@@ -92,7 +93,7 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements Observe
 	private TiledTextureRegion ballTextureRegion;
 	private TextureRegion paddleTextureRegion;
 	private static PongSprite paddle;
-
+	private boolean isBallInThere;
 
 	// Handler recoit donnees depuis PongCommunication
 	private final Handler mHandler = new Handler() {
@@ -107,10 +108,10 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements Observe
 				String str[] = readBuf.split(",");
 				PM.updateFromExt(new Ball(Float.valueOf(str[0]), -Float.valueOf(str[1])));
 				break;
-				
+
 			case MESSAGE_SCORE:
 
-				String remoteScore = (String) msg.obj;				
+				String remoteScore = (String) msg.obj;
 				GSM.setSCORE(Integer.valueOf(remoteScore));
 				break;
 
@@ -121,31 +122,32 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements Observe
 	private BitmapTextureAtlas mTexture;
 	private BitmapTextureAtlas mBackgroundTexture;
 	private TextureRegion mBackgroundGrassTextureRegion;
-	
-	
-	
-	
+
 	@Override
 	protected void onPause() {
 		// TODO Auto-generated method stub
 		super.onPause();
-		PC.stop();
+		decoder.stop();
 	}
-	
-	
 
 	@Override
 	public Engine onLoadEngine() {
+
 		// reseau
-		
-		this.remoteIP = getIntent().getExtras().getString("roll");
+
 		this.joueur = getIntent().getExtras().getString("jp");
-		GSM= new GameScoreManager();
+		if (joueur.equals("1P")) {
+			isBallInThere = true;
+		} else {
+			isBallInThere = false;
+		}
+		GSM = new GameScoreManager();
 		GSM.addObserver(this);
 		PM = new PongModel(false);
 		PM.addObserver(this);
 
-		PC = new PongCommunication(this, this.mHandler);
+		encoder = new Encoder();
+		decoder = new Decoder(mHandler);
 
 		// Initialisation de la caméra
 		camera = new Camera(0, 0, CAMERA_LARGEUR, CAMERA_HAUTEUR);
@@ -161,14 +163,14 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements Observe
 
 	@Override
 	public void onLoadResources() {
-		
+
 		// Chargement des textures de la scéne
-		//this.maScene.setBackground(new ColorBackground(0, 0, 0));
+		// this.maScene.setBackground(new ColorBackground(0, 0, 0));
 		LoadResources(getEngine(), this);
-		// if(this.remoteIP!=null){
-		// PC.startbis(this.remoteIP);}else{
-		PC.start();
-		// }
+
+		if (!this.isBallInThere) {
+			decoder.start();
+		}
 	}
 
 	@Override
@@ -183,67 +185,55 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements Observe
 
 	}
 
-	
 	@Override
-	public void onPauseGame(){
-		super.onPauseGame();;
+	public void onPauseGame() {
+		super.onPauseGame();
 		System.exit(0);
 	}
+
 	@Override
 	public void update(Observable arg0, Object arg1) {
 		// TODO Auto-generated method stub
-if(!arg0.getClass().equals(GameScoreManager.class)){
-		if (PM.isBallInTerrain()) {
-			ball = new BallSprite(PM.getBALL().getX(), PM.getBALL().getY(),
-					ballTextureRegion, this.PC);
-			this.maScene.attachChild(ball);
-			PM.setBallInTerrain(false);
+		if (!arg0.getClass().equals(GameScoreManager.class)) {
+			if (PM.isBallInTerrain()) {
+				ball = new BallSprite(PM.getBALL().getX(), PM.getBALL().getY(),
+						ballTextureRegion);
+				this.maScene.attachChild(ball);
+				PM.setBallInTerrain(false);
+			} else {
+
+				if (PM.getBALL().getY() < -0.2) {
+					encoder.sendBuffer(PM.getBALL().getX() + ","
+							+ PM.getBALL().getY());
+					this.detachBallFromScene();
+				}
+			}
 		} else {
 
-			if (PM.getBALL().getY() < -0.2) {
-
-				this.sendMessage("posi/" + PM.getBALL().getX() + ","
-						+ PM.getBALL().getY());
-				this.detachBallFromScene();
+			if (this.missesI != Integer.valueOf(GSM.getMISSES())) {
+				this.missesText.setText("Misses : " + GSM.getMISSES());
+				encoder.sendScore(GSM.getMISSES());
+				this.missesI = Integer.valueOf(GSM.getMISSES());
 			}
+
+			// if(this.scoreI!=Integer.valueOf(GSM.getMISSES())){
+
+			this.scoreText.setText("Score : " + GSM.getSCORE());
+			this.scoreI = Integer.valueOf(GSM.getSCORE());
+			// }
+
 		}
-}else{
-	
-		if(this.missesI!=Integer.valueOf(GSM.getMISSES())){
-			this.missesText.setText("Misses : "+GSM.getMISSES());
-			sendMessage("sco/"+GSM.getMISSES());
-			this.missesI=Integer.valueOf(GSM.getMISSES());
-		}
-		
-		//if(this.scoreI!=Integer.valueOf(GSM.getMISSES())){
-		
-		this.scoreText.setText("Score : "+GSM.getSCORE());
-		this.scoreI=Integer.valueOf(GSM.getSCORE());
-	//	}
-		
-}
-		
 
 	}
 
-	private void sendMessage(String message) {
+	public void loadBackground() {
 
-		// non vide?
-		if (message.length() > 0) {
-
-			byte[] send = message.getBytes();
-
-			PC.write(send);
-
-		}
-	}
-	
-	
-	public void loadBackground(){
-		
-        this.mBackgroundTexture = new BitmapTextureAtlas(2048,2048, TextureOptions.BILINEAR_PREMULTIPLYALPHA);
-        this.mBackgroundGrassTextureRegion = BitmapTextureAtlasTextureRegionFactory.createFromAsset(this.mBackgroundTexture, this, "gfx/bg.png", 0, 0);
-        this.mEngine.getTextureManager().loadTextures(this.mBackgroundTexture);
+		this.mBackgroundTexture = new BitmapTextureAtlas(2048, 2048,
+				TextureOptions.BILINEAR_PREMULTIPLYALPHA);
+		this.mBackgroundGrassTextureRegion = BitmapTextureAtlasTextureRegionFactory
+				.createFromAsset(this.mBackgroundTexture, this, "gfx/bg.png",
+						0, 0);
+		this.mEngine.getTextureManager().loadTextures(this.mBackgroundTexture);
 	}
 
 	// //////////////////////////////////////////////////
@@ -279,8 +269,9 @@ if(!arg0.getClass().equals(GameScoreManager.class)){
 		// Initialisation de notre tank
 		final float centerX = (CAMERA_LARGEUR - paddleTextureRegion.getWidth()) / 2;
 		float centerY = 320;
-		paddle = new PongSprite(centerX, centerY, paddleTextureRegion.getWidth()+50,
-				paddleTextureRegion.getHeight()-20, paddleTextureRegion);
+		paddle = new PongSprite(centerX, centerY,
+				paddleTextureRegion.getWidth() + 50,
+				paddleTextureRegion.getHeight() - 20, paddleTextureRegion);
 		// Redimensionne notre tank
 		paddle.setScale(0.5f);
 
@@ -319,14 +310,15 @@ if(!arg0.getClass().equals(GameScoreManager.class)){
 
 		final int ballX = (CAMERA_LARGEUR - this.ballTextureRegion.getWidth()) / 2;
 		final int ballY = (CAMERA_HAUTEUR - this.ballTextureRegion.getHeight()) / 2;
-		ball = new BallSprite(100, 0, ballTextureRegion, this.PC);
+		ball = new BallSprite(100, 0, ballTextureRegion);
 
 		if (this.joueur.equals("1P")) {
 			this.maScene.attachChild(ball);
 		}
-		
-		Sprite bgSprite = new Sprite(0,0, CAMERA_LARGEUR, 400, mBackgroundGrassTextureRegion);
-		SpriteBackground background=new SpriteBackground(bgSprite);
+
+		Sprite bgSprite = new Sprite(0, 0, CAMERA_LARGEUR, 400,
+				mBackgroundGrassTextureRegion);
+		SpriteBackground background = new SpriteBackground(bgSprite);
 		maScene.setBackground(background);
 
 	}
@@ -339,12 +331,11 @@ if(!arg0.getClass().equals(GameScoreManager.class)){
 	 */
 	public void LoadResources(final Engine engine, Context context) {
 		this.loadBackground();
-		//Chargement des textures de la raquete*t
-		paddleTexture = new BitmapTextureAtlas(256,1024,
+		// Chargement des textures de la raquete*t
+		paddleTexture = new BitmapTextureAtlas(256, 1024,
 				TextureOptions.BILINEAR);
 		paddleTextureRegion = BitmapTextureAtlasTextureRegionFactory
-				.createFromAsset(paddleTexture, context, "gfx/pad128.png", 0,
-						0);
+				.createFromAsset(paddleTexture, context, "gfx/pad128.png", 0, 0);
 
 		// Chargement des textures du contrôle analogique
 		mOnScreenControlTexture = new BitmapTextureAtlas(256, 128,
@@ -407,20 +398,18 @@ if(!arg0.getClass().equals(GameScoreManager.class)){
 		private static final float VELOCITY = 370.0f;
 
 		public BallSprite(final float pX, final float pY,
-				final TiledTextureRegion pTextureRegion, PongCommunication PC) {
+				final TiledTextureRegion pTextureRegion) {
 			super(pX, pY, pTextureRegion);
 			this.mPhysicsHandler = new PhysicsHandler(this);
 			this.registerUpdateHandler(this.mPhysicsHandler);
 			// Set differential x & y component for angle other than 45
 			this.mPhysicsHandler.setVelocity(VELOCITY, (float) 0.70 * VELOCITY);
 		}
-		
 
 		@Override
 		protected void onManagedUpdate(final float pSecondsElapsed) {
 
 			PM.setBALL(new Ball(mX, mY, VELOCITY));
-		
 
 			if (this.mX < 0) {
 				this.mPhysicsHandler.setVelocityX(VELOCITY);
@@ -433,10 +422,9 @@ if(!arg0.getClass().equals(GameScoreManager.class)){
 			} else if (this.mY + this.getHeight() > 400) { // Edge of bounded
 															// rectangle
 				GSM.incrementMisses();
-				
+
 				// At bottom. Restart from the top
 				this.setPosition(this.getX() + 10, 10);
-				
 
 				this.mPhysicsHandler.setVelocityY(VELOCITY);
 			}
@@ -445,21 +433,21 @@ if(!arg0.getClass().equals(GameScoreManager.class)){
 			if (paddle.collidesWith(this) || this.collidesWith(paddle)) {
 				float vx = this.mPhysicsHandler.getVelocityX();
 				float vy = this.mPhysicsHandler.getVelocityY();
-			/*	if(this.getX()<paddle.getX()-paddle.getWidth()/2 && this.getY()>paddle.getY()-paddle.getHeight()/2){
-					this.mPhysicsHandler.setVelocityX(-VELOCITY);
-				}
-				else if(this.getX()>paddle.getX()+paddle.getWidth()/2 && this.getY()>paddle.getY()-paddle.getHeight()/2){
-					this.mPhysicsHandler.setVelocityX(VELOCITY);
-				}*/
-								this.mPhysicsHandler.setVelocity(-vx, -vy);
-				
+				/*
+				 * if(this.getX()<paddle.getX()-paddle.getWidth()/2 &&
+				 * this.getY()>paddle.getY()-paddle.getHeight()/2){
+				 * this.mPhysicsHandler.setVelocityX(-VELOCITY); } else
+				 * if(this.getX()>paddle.getX()+paddle.getWidth()/2 &&
+				 * this.getY()>paddle.getY()-paddle.getHeight()/2){
+				 * this.mPhysicsHandler.setVelocityX(VELOCITY); }
+				 */
+				this.mPhysicsHandler.setVelocity(-vx, -vy);
+
 			}
 
 			super.onManagedUpdate(pSecondsElapsed);
 		}
 
 	}
-	
-	
 
 }

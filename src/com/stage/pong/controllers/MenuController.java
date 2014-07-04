@@ -32,33 +32,27 @@ public class MenuController extends Activity {
 	private Button button1P;
 	private Button join;
 	private Context ctx;
-	private PongCommunication PC;
 	private TextView txt;
-	private String remoteIP = null;
 	private Encoder encoder;
 	private Decoder decoder;
+	String TAG = "mydebug";
 
-	private final Handler mHandler = new Handler() {
+	private final Handler handler = new Handler() {
 		@Override
 		public void handleMessage(Message msg) {
 
 			switch (msg.what) {
 
 			case MESSAGE_ASK:
-				
-				String a = (String) msg.obj;
-				String s = "pong/" + a;
-				byte[] send = s.getBytes();
-				PC.write(send);
+
+				decoder.stop();
 				showDialog("falilou");
-				// startGame(null,"2P");
+
 				break;
 			case MESSAGE_RASK:
 
-				remoteIP = (String) msg.obj;
-
-				txt.setText("joueur connecté : " + remoteIP);
-
+				txt.setText("le joueur a accepté votre invitation");
+				startGame(null, "1P");
 				break;
 
 			}
@@ -72,7 +66,7 @@ public class MenuController extends Activity {
 		super.onCreate(savedInstanceState);
 		this.ctx = this;
 		this.encoder = new Encoder();
-		this.decoder = new Decoder();
+		this.decoder = new Decoder(handler);
 		this.setContentView(R.layout.main_menu);
 
 	}
@@ -85,15 +79,13 @@ public class MenuController extends Activity {
 		bundle.putString("jp", joueur);
 		Intent i = new Intent(this, PongControllerTwoPlayer.class);
 		i.putExtras(bundle);
-		PC.stop();
+		decoder.stop();
 		startActivity(i);
 	}
 
 	@Override
 	public void onStart() {
 		super.onStart();
-		PC = new PongCommunication(this, this.mHandler);
-		PC.start();
 
 		this.button2P = (Button) this.findViewById(R.id.button2P);
 		this.button1P = (Button) this.findViewById(R.id.button1P);
@@ -104,8 +96,8 @@ public class MenuController extends Activity {
 
 			@Override
 			public void onClick(View v) {
-				// envoyer un ping et rester en attente d'un pong
-				Pinger();
+
+				inviteSomeone();
 
 			}
 		});
@@ -122,44 +114,12 @@ public class MenuController extends Activity {
 
 			@Override
 			public void onClick(View v) {
-				startGame(remoteIP, "1P");
+				startGame(null, "1P");
 
 			}
 		});
 
-	}
-
-	@Override
-	protected void onResume() {
-		// TODO Auto-generated method stub
-		super.onResume();
-		// this.PC.start();
-	}
-
-	@Override
-	protected void onPause() {
-		// TODO Auto-generated method stub
-		super.onPause();
-		PC.stop();
-	}
-
-	@Override
-	protected void onRestart() {
-		super.onRestart();
-		PC.stop();
-		PC.start();
-	}
-
-	/**
-	 * Sends a message.
-	 * 
-	 * @param message
-	 *            A string of text to send.
-	 */
-	private void Pinger() {
-
-		byte[] send = "ping/ping".getBytes();
-		PC.write(send);
+		decoder.start();
 
 	}
 
@@ -168,7 +128,10 @@ public class MenuController extends Activity {
 	}
 
 	public void inviteSomeone() {
+
+		decoder.pause();
 		encoder.invitePlayer();
+
 	}
 
 	public void showDialog(String s) {
@@ -185,18 +148,29 @@ public class MenuController extends Activity {
 				.setPositiveButton("Yes",
 						new DialogInterface.OnClickListener() {
 							public void onClick(DialogInterface dialog, int id) {
+								decoder.pause();
+								encoder.joinPlayer();
+								decoder.stop();
+
 								startGame(null, "2P");
+
 							}
 						})
 				.setNegativeButton("NO", new DialogInterface.OnClickListener() {
 					public void onClick(DialogInterface dialog, int id) {
-
+						reset();
 					}
 				})
 
 		;
 		alertDialogBuilder.show();
 
+	}
+
+	public void reset() {
+		decoder = new Decoder(handler);
+		decoder.start();
+		
 	}
 
 }

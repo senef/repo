@@ -2,13 +2,23 @@ package com.stage.pong.dtmf;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Observable;
+
+import com.stage.pong.controllers.MenuController;
+import com.stage.pong.controllers.PongControllerTwoPlayer;
 
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.os.Handler;
 import android.util.Log;
 
-public class Decoder {
+public class Decoder extends Observable{
+	
+	//
+	int iter=0;
+	float px;
+	float py;
 
 	//
 	boolean detect = true;
@@ -38,21 +48,16 @@ public class Decoder {
 	String paquetRecu = "";
 	int compteur = 0;
 	double[][] xbuff;
+	Handler mHandler;
+	Thread recordingThread ;
+	private int bufferReadSize;
+	String TAGI="mydebug";
 
 	// ecriture dans un fichier
 
-	public Decoder() {
-		try {
-			init();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-	}
-
-	public void start() {
-		Thread recordingThread = new Thread(new Runnable() {
+	public Decoder(Handler H) {
+		this.mHandler=H;
+		recordingThread = new Thread(new Runnable() {
 
 			@Override
 			public void run() {
@@ -65,6 +70,46 @@ public class Decoder {
 			}
 
 		});
+		try {
+			init();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+	}
+	public void pause(){
+		
+		try {
+			//audioRecord.stop();
+			recordingThread.sleep(100);
+		//	audioRecord.startRecording();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		};
+		
+	}
+	public void resume(){
+		recordingThread.resume();
+	}
+	public void stop(){
+		if (recordingThread != null) {
+			this.audioRecord.stop();
+			try {
+				recordingThread.join();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			recordingThread = null;
+		}
+		
+	}
+	
+
+	public void start() {
+		
 		recordingThread.start();
 	}
 
@@ -120,9 +165,12 @@ public class Decoder {
 		String s = match(freq1, freq2);
 		if (s.equals("#")) {
 			// invitation : show dialog d'invite
+			mHandler.obtainMessage(MenuController.MESSAGE_ASK).sendToTarget();
 		} else if (s.equals("*")) {
 			// invitation accepté : demarrer le jeu
+			mHandler.obtainMessage(MenuController.MESSAGE_RASK).sendToTarget();
 		} else if ((Integer.valueOf(s) > 1) && (Integer.valueOf(s) < 10)) {
+			Log.d(TAGI, "valeur de s= "+Integer.valueOf(s));
 			this.TOUCHTONESSIZE = Integer.valueOf(s);
 			this.paquetRecu = "0";
 			this.touchTones = 0;
@@ -130,7 +178,15 @@ public class Decoder {
 			paquetRecu = this.paquetRecu +","+ s;
 			this.touchTones++;
 			if (this.touchTones == this.TOUCHTONESSIZE) {
-				int n=binaryToInt(paquetRecu);
+				if(iter==0){
+				px=binaryToInt(paquetRecu);
+				}
+				else if(iter==1){
+					py=binaryToInt(paquetRecu);
+					mHandler.obtainMessage(PongControllerTwoPlayer.MESSAGE_READ, px+","+py)
+	    			.sendToTarget();
+				}
+				iter++;
 				//appel au handler
 				this.paquetRecu = "0";
 				this.touchTones = 0;
@@ -359,13 +415,13 @@ public class Decoder {
 
 		audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, frequency,
 				channelConfiguration, audioEncoding, bufferSize);
-		ArrayList<short[]> buffers = new ArrayList<short[]>();
+		
 		try {
 
 			short[] buffer = new short[blockSize];
-			int bufferReadSize = 0;
+			
 			audioRecord.startRecording();
-
+			
 			while (audioRecord.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) {
 
 				bufferReadSize = audioRecord.read(buffer, 0, blockSize);

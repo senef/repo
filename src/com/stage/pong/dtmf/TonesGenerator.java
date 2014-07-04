@@ -52,11 +52,17 @@ import android.media.ToneGenerator;
 		
 	}
 	public void sendSequence(int [] sequence) throws InterruptedException{
-		
+		play(sequence.length);
+		//Thread.sleep(40);	
 		for (int i=0;i<sequence.length;i++){
 			 play(sequence[i]);
-			Thread.sleep(40);	
+			//Thread.sleep(40);	
 		}
 		toneGen.release();
+	}
+	
+	public void sendPosition(int [] n) throws InterruptedException{
+		sendSequence(intToBinary(n[0]));
+		sendSequence(intToBinary(n[1]));
 	}
 }
