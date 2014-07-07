@@ -11,18 +11,18 @@ public class GameScoreManager extends Observable {
 	
 	public void incrementScore(){
 		this.SCORE ++;
-		this.setChanged();this.notifyObservers();
+	///	this.setChanged();this.notifyObservers();
 	}
 	public void incrementMisses(){
 		this.MISSES ++;
-		this.setChanged();this.notifyObservers("misse");
+		//this.setChanged();this.notifyObservers("misse");
 	}
 	public String getSCORE() {
 		return String.valueOf(SCORE);
 	}
 	public void setSCORE(int sCORE) {
 		SCORE = sCORE;
-		this.setChanged();this.notifyObservers("score");
+		//this.setChanged();this.notifyObservers("score");
 	}
 	public String getMISSES() {
 		return String.valueOf(MISSES);

@@ -24,10 +24,14 @@ public class Encoder {
 	public void sendBuffer(String s) {
 		System.out.println("debugage s ="+s );
 		String str[] = s.split(",");
-		int[] coord = new int[2];
-		coord[0] = Integer.valueOf(str[0]);
-		coord[1] = Integer.valueOf(str[0]);
-		System.out.println("debugage s ="+coord[0]+","+coord[1] );
+		int  [] coord = new int [2];
+		double a = Double.valueOf(str[0]);
+		double b = Double.valueOf(str[1]);
+		
+		coord[0]=(int)a;
+		coord[1]=(int)b;
+		
+	
 		try {
 			Gen.sendPosition(coord);
 		} catch (InterruptedException e) {

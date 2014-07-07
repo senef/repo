@@ -37,7 +37,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
-import com.stage.pong.dtmf.Decoder;
+import com.stage.pong.dtmf.DecoderPosition;
 import com.stage.pong.dtmf.Encoder;
 import com.stage.pong.modeles.Ball;
 import com.stage.pong.modeles.GameScoreManager;
@@ -59,7 +59,7 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements
 	private int missesI = 0;
 
 	// variables de communications
-	private Decoder decoder;
+	private DecoderPosition decoder;
 	private Encoder encoder;
 	// modele
 	private static PongModel PM;
@@ -103,10 +103,12 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements
 			switch (msg.what) {
 
 			case MESSAGE_READ:
-
+			
 				String readBuf = (String) msg.obj;
 				String str[] = readBuf.split(",");
-				PM.updateFromExt(new Ball(Float.valueOf(str[0]), -Float.valueOf(str[1])));
+				System.out.println("okok : "+Float.valueOf(str[0]));
+				PM.updateFromExt(new Ball(Float.valueOf(str[0]), 100));
+				decoder.stop();
 				break;
 
 			case MESSAGE_SCORE:
@@ -147,7 +149,7 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements
 		PM.addObserver(this);
 
 		encoder = new Encoder();
-		decoder = new Decoder(mHandler);
+		decoder = new DecoderPosition(mHandler);
 
 		// Initialisation de la caméra
 		camera = new Camera(0, 0, CAMERA_LARGEUR, CAMERA_HAUTEUR);
@@ -206,6 +208,7 @@ public class PongControllerTwoPlayer extends BaseGameActivity implements
 					encoder.sendBuffer(PM.getBALL().getX() + ","
 							+ PM.getBALL().getY());
 					this.detachBallFromScene();
+					this.decoder.start();
 				}
 			}
 		} else {
